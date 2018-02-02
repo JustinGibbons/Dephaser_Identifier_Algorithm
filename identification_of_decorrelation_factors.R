@@ -70,19 +70,13 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   #be used
   if(isTRUE(randomize_data)){
     #print("Randomizing Data")
-    rank_diff=v_sample2-v_sample1
     set.seed(randomization_seed) #Setting seed to make randomization repeatable
-    #Randomize the order of the rank differences so that genes don't have their true rank differences
-    rank_diff_randomized=sample(rank_diff,size=length(rank_diff),replace=FALSE)
-    names(rank_diff)=names(rank_diff_randomized)
-    print(head(rank_diff))
-    print(head(rank_diff_randomized))
-    df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff_randomized)
+    #Randomize rank differences
+    rank_diff=sample(v_sample2,size=length(v_sample2),replace = FALSE)-sample(v_sample1,size=length(v_sample1),
+                                                                              replace=FALSE)
+    df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff)
     write.csv(df_rankdiff,rank_diff_outfile)
-    abs_rank_diff=abs(rank_diff_randomized)
-    #print(head(names(abs_rank_diff)))
-    #print(head(names(rank_diff)))
-    
+    abs_rank_diff=abs(rank_diff)
     
   }else{
     print("Not Randomizing Data")
