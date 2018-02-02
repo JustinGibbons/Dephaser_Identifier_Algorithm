@@ -70,11 +70,15 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   #If randomize_data is TRUE the abs_rank_diff for a gene will be randomized. Otherwise, the true rank difference will
   #be used
   if(isTRUE(randomize_data)){
-    #print("Randomizing Data")
+    print("Randomizing Data")
     set.seed(randomization_seed) #Setting seed to make randomization repeatable
-    #Randomize rank differences
-    rank_diff=sample(v_sample2,size=length(v_sample2),replace = FALSE)-sample(v_sample1,size=length(v_sample1),
-                                                                              replace=FALSE)
+    #Randomize rank differences so that the rank difference of the random data has the same distribution as the
+    #experimental data
+    sample_rank_diff=v_sample2-v_sample1
+    sample_mean=mean(sample_rank_diff)
+    sample_std=sd(sample_rank_diff)
+    rank_diff=rnorm(n=length(v_sample2),mean=sample_mean,sd=sample_std)
+    names(rank_diff)=names(v_sample2)
     df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff)
     write.csv(df_rankdiff,rank_diff_outfile)
     abs_rank_diff=abs(rank_diff)
@@ -104,11 +108,15 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   df_quantiles=data.frame(gene=names(abs_rank_quantiles),quantile=abs_rank_quantiles)
   write.csv(df_quantiles,abs_quantiles_outfile)
   quantiles=sort(unique(abs_rank_quantiles),decreasing=TRUE)
+  
   old_ref_cor=cor(x=v_sample1,y=v_sample2,method="spearman")
   
   #Loop to perform the filtering
   i=1
-  while(old_ref_cor<minimum_acceptable_correlation & i <length(quantiles)+1){ 
+  number_of_genes=nrow(df_fpkm)
+  quantile_size=ceiling(number_of_genes/length(quantiles))
+  
+  while(old_ref_cor<minimum_acceptable_correlation & nrow(m_fpkm_data) >quantile_size){ 
     
     #Get the next quantile to remove
     quantile=quantiles[i]
@@ -137,6 +145,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     pb58_string=paste("PB58",timepoint,sep=".")
     
     #Update how well the 2 samples are correlating with each other
+  
     old_ref_cor=cor(m_fpkm_data[,sample2_name],m_fpkm_data[,sample1_name],method="spearman")
     
     #Get the rows corresponding to the timepoints used (the current dataset contains multiple timepoints and
@@ -192,7 +201,7 @@ rownames(m_ref_data)=df_ref_data[,1]
 m_fpkm_data=as.matrix(df_fpkm[,2:length(df_fpkm)])
 rownames(m_fpkm_data)=df_fpkm[,1]
 ####Run on real data
-identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+ identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
                                      m_ref_data=m_ref_data,
                                      quantiles=seq(0,1,0.01),
                                      sample1_name="NF54.6h",sample2_name="PB58.6h",
