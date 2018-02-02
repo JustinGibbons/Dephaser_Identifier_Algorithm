@@ -43,6 +43,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
                                                quantiles=seq(0,1,0.01),
                                                timepoint,
                                                rank_diff_outfile="rank_diff.csv",
+                                               rank_diff_hist_outfile="rank_diff_histogram.pdf",
                                      abs_quantiles_outfile="abs_values_quantiles.csv",outdir="Correlation_Improvement_Graphs",
                                      randomize_data=FALSE,
                                      randomization_seed=5712){
@@ -78,13 +79,25 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     write.csv(df_rankdiff,rank_diff_outfile)
     abs_rank_diff=abs(rank_diff)
     
+    #Plot out the rank differences as a histogram
+    pdf(rank_diff_hist_outfile)
+    hist(rank_diff,main="Randomized Rank Difference Distribution", xlab="Rank Difference")
+    dev.off()
+    
   }else{
     print("Not Randomizing Data")
     rank_diff=v_sample2-v_sample1
     df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff)
     write.csv(df_rankdiff,rank_diff_outfile)
     abs_rank_diff=abs(rank_diff)
+    
+    #Plot out the rank differences as a histogram
+    pdf(rank_diff_hist_outfile)
+    hist(rank_diff,main="True Rank Difference Distribution", xlab="Rank Difference")
+    dev.off()
   }
+  
+  
 
   #Get the quantiles for the rank differences
   abs_rank_quantiles=report_quantiles(abs_rank_diff,probs=quantiles,type=7,na.rm=TRUE)
@@ -178,15 +191,29 @@ m_ref_data=as.matrix(df_ref_data[,2:length(df_ref_data)])
 rownames(m_ref_data)=df_ref_data[,1]
 m_fpkm_data=as.matrix(df_fpkm[,2:length(df_fpkm)])
 rownames(m_fpkm_data)=df_fpkm[,1]
+####Run on real data
+identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+                                     m_ref_data=m_ref_data,
+                                     quantiles=seq(0,1,0.01),
+                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
+                                     minimum_acceptable_correlation=0.8,timepoint="6h",
+                                     rank_diff_outfile="rank_diff.csv",
+                                     abs_quantiles_outfile="abs_values_quantiles.csv",
+                                     rank_diff_hist_outfile="rank_diff_histogram.pdf",
+                                     outdir="6hr_Correlation_Improvement_Graphs",
+                                     randomize_data=FALSE,
+                                     randomization_seed=5712)
 
 
+####Run on randomized data
 identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
                                      m_ref_data=m_ref_data,
                                      quantiles=seq(0,1,0.01),
                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
                                     minimum_acceptable_correlation=0.8,timepoint="6h",
                                     rank_diff_outfile="randomized_rank_diff.csv",
-                                     abs_quantiles_outfile="randomized_abs_values_quantiles.csv",
+                                    abs_quantiles_outfile="randomized_abs_values_quantiles.csv",
+                                    rank_diff_hist_outfile="randomized_rank_diff_histogram.pdf",
                                     outdir="randomized_6hr_Correlation_Improvement_Graphs",
                                     randomize_data=TRUE,
                                     randomization_seed=5712)
