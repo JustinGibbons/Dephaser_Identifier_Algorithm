@@ -62,23 +62,36 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   #Create the out directory
   dir.create(outdir)
   ##Get the ranks of the values
-  m_fpkm_ranked=rank_matrix_values(m_fpkm_data)
-  v_sample1=m_fpkm_ranked[,sample1_name]
-  v_sample2=m_fpkm_ranked[,sample2_name]
 
   #Get the absolute rank difference for each gene between the samples
   #If randomize_data is TRUE the abs_rank_diff for a gene will be randomized. Otherwise, the true rank difference will
   #be used
   if(isTRUE(randomize_data)){
     print("Randomizing Data")
+    
+    #Randomize the experimental data measurements
     set.seed(randomization_seed) #Setting seed to make randomization repeatable
-    #Randomize rank differences so that the rank difference of the random data has the same distribution as the
-    #experimental data
-    sample_rank_diff=v_sample2-v_sample1
-    sample_mean=mean(sample_rank_diff)
-    sample_std=sd(sample_rank_diff)
-    rank_diff=rnorm(n=length(v_sample2),mean=sample_mean,sd=sample_std)
-    names(rank_diff)=names(v_sample2)
+    nrows=nrow(m_fpkm_data)
+    ncols=ncol(m_fpkm_data)
+    number_of_measurements=nrows*ncols
+    matrix_mean=mean(m_fpkm_data)
+    matrix_std=sd(m_fpkm_data)
+    matrix_colnames=colnames(m_fpkm_data)
+    matrix_rownames=rownames(m_fpkm_data)
+    m_fpkm_data=matrix(rnorm(n=number_of_measurements,mean=matrix_mean,sd=matrix_std),nrows,ncols)
+   
+    
+    colnames(m_fpkm_data)=matrix_colnames
+    rownames(m_fpkm_data)=matrix_rownames
+    View(m_fpkm_data)
+    
+    m_fpkm_ranked=rank_matrix_values(m_fpkm_data)
+    v_sample1=m_fpkm_ranked[,sample1_name]
+    v_sample2=m_fpkm_ranked[,sample2_name]
+    
+    
+    
+    rank_diff=v_sample2-v_sample1
     df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff)
     write.csv(df_rankdiff,rank_diff_outfile)
     abs_rank_diff=abs(rank_diff)
@@ -90,6 +103,11 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     
   }else{
     print("Not Randomizing Data")
+    
+    m_fpkm_ranked=rank_matrix_values(m_fpkm_data)
+    v_sample1=m_fpkm_ranked[,sample1_name]
+    v_sample2=m_fpkm_ranked[,sample2_name]
+    
     rank_diff=v_sample2-v_sample1
     df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff)
     write.csv(df_rankdiff,rank_diff_outfile)
@@ -115,7 +133,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   i=1
   number_of_genes=nrow(df_fpkm)
   quantile_size=ceiling(number_of_genes/length(quantiles))
-  
+  #Continue while data correlation is less than minimum correlation and there is still unfiltered data
   while(old_ref_cor<minimum_acceptable_correlation & nrow(m_fpkm_data) >quantile_size){ 
     
     #Get the next quantile to remove
@@ -201,17 +219,17 @@ rownames(m_ref_data)=df_ref_data[,1]
 m_fpkm_data=as.matrix(df_fpkm[,2:length(df_fpkm)])
 rownames(m_fpkm_data)=df_fpkm[,1]
 ####Run on real data
- identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
-                                     m_ref_data=m_ref_data,
-                                     quantiles=seq(0,1,0.01),
-                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
-                                     minimum_acceptable_correlation=0.8,timepoint="6h",
-                                     rank_diff_outfile="rank_diff.csv",
-                                     abs_quantiles_outfile="abs_values_quantiles.csv",
-                                     rank_diff_hist_outfile="rank_diff_histogram.pdf",
-                                     outdir="6hr_Correlation_Improvement_Graphs",
-                                     randomize_data=FALSE,
-                                     randomization_seed=5712)
+ # identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+ #                                     m_ref_data=m_ref_data,
+ #                                     quantiles=seq(0,1,0.01),
+ #                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
+ #                                     minimum_acceptable_correlation=0.8,timepoint="6h",
+ #                                     rank_diff_outfile="rank_diff.csv",
+ #                                     abs_quantiles_outfile="abs_values_quantiles.csv",
+ #                                     rank_diff_hist_outfile="rank_diff_histogram.pdf",
+ #                                     outdir="6hr_Correlation_Improvement_Graphs",
+ #                                     randomize_data=FALSE,
+ #                                     randomization_seed=5712)
 
 
 ####Run on randomized data
