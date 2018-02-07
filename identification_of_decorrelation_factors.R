@@ -307,19 +307,22 @@ volcano_plot<-function(m_average_expression, group1_identifier, group2_identifie
   #The different sample types which are identied by the variables group1_identifier and group2_identifier.
   #flagged_genes is a vector of the genes that are too be flagged with a different color
   #The fold change is than calculated as log2(group1/group2)
-  #xaxis is the average expression in group1
+  #xaxis is the average expression in the 2 groups
   
   outfile=paste(paste(group1_identifier,group2_identifier,"volano_plot",sep="_"),"pdf",sep=".")
   
   
   fold_change=log2(m_average_expression[,group1_identifier]/m_average_expression[,group2_identifier])
   gene_flagged=rownames(m_average_expression) %in% flagged_genes
+  average_expression=(m_average_expression[,group1_identifier]+m_average_expression[,group2_identifier])/2
   df=data.frame(GeneID=rownames(m_average_expression),Fold_Change=fold_change,
-                Reference_Expression=log2(m_average_expression[,group1_identifier]),Gene_Flagged=gene_flagged)
+                Average_Expression=log2(average_expression),
+                Gene_Flagged=gene_flagged)
   
   
-  plot=ggplot(df,aes(x=Reference_Expression,y=Fold_Change,color=Gene_Flagged))
+  plot=ggplot(df,aes(x=Average_Expression,y=Fold_Change,color=Gene_Flagged))
   plot=plot+geom_point(size=2)
+  plot=plot+scale_y_continuous(limits=c(-2.5,2.5))
   #ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=26.4,face="bold"))+
   #   scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")+
   #   scale_color_manual(values=c("#ff1aff","#b800e6"))
@@ -411,5 +414,5 @@ randomized_genes_not_removed=l_randomized_results$Genes_Not_Removed
 #                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
 
 
-volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
+df=volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
                                                                                           #the denominator
