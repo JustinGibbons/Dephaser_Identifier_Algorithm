@@ -55,6 +55,8 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
                                      abs_quantiles_outfile="abs_values_quantiles.csv",outdir="Correlation_Improvement_Graphs",
                                      randomize_data=FALSE,
                                      randomize_removal=FALSE,
+                                     fold_change_filter=FALSE,
+                                     raw_fpkm_average_matrix=NULL,
                                      randomization_seed=5712){
   
 #m_fpkm_data is a matrix of the experimental data
@@ -65,6 +67,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
 #quantiles is a vector indicating which quantiles to make
 #timepoint is a string that can be used to filter the samples based on the timepoint indicated in the column name
   #and is very specific to this specific dataset
+#If fold_change_filter is TRUE you need to supply the FPKM averages for the samples as a matrix
   
 #If randomize_data is TRUE will randomize the ranks of the experimental da
 
@@ -112,6 +115,31 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     hist(rank_diff,main="Randomized Rank Difference Distribution", xlab="Rank Difference")
     dev.off()
     
+  }else if(isTRUE(fold_change_filter)){
+    print("Quantiles based on fold change instead of rank difference")
+    
+    #only include genes used to plot correlations with reference
+    raw_fpkm_average_matrix=raw_fpkm_average_matrix[rownames(raw_fpkm_average_matrix) %in% rownames(m_fpkm_data),]
+    View(raw_fpkm_average_matrix)
+    View(m_fpkm_data)
+    
+    rank_diff=log2(raw_fpkm_average_matrix[,sample2_name]/raw_fpkm_average_matrix[,sample1_name])
+    
+    m_fpkm_ranked=rank_matrix_values(m_fpkm_data)
+    v_sample1=m_fpkm_ranked[,sample1_name]
+    v_sample2=m_fpkm_ranked[,sample2_name]
+    
+    df_rankdiff=data.frame(gene=rownames(raw_fpkm_average_matrix),rank.diff=rank_diff)
+    View(df_rankdiff)
+    write.csv(df_rankdiff,rank_diff_outfile)
+    abs_rank_diff=abs(rank_diff)
+    
+    #Plot out the rank differences as a histogram
+    pdf(rank_diff_hist_outfile)
+    hist(rank_diff,main="Fold Change Distribution", xlab="Fold Change")
+    dev.off()
+    
+  
   }else{
     print("Not Randomizing Data")
     
@@ -415,29 +443,47 @@ randomized_correlations=l_randomized_results$Correlations
 randomized_genes_removed=l_randomized_results$Genes_Removed
 randomized_genes_not_removed=l_randomized_results$Genes_Not_Removed
 
-l_randomized_removal_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
-                                     m_ref_data=m_ref_data,
-                                     quantiles=seq(0,1,0.01),
-                                    sample1_name="NF54.6h",sample2_name="PB58.6h",
-                                    minimum_acceptable_correlation=0.8,timepoint="6h",
-                                    rank_diff_outfile="randomized_rank_diff.csv",
-                                    abs_quantiles_outfile="randomized_removal_abs_values_quantiles.csv",
-                                    rank_diff_hist_outfile="randomized_removal_rank_diff_histogram.pdf",
-                                    outdir="randomized_removal_6hr_Correlation_Improvement_Graphs",
-                                    randomize_data=FALSE,
-                                    randomize_removal=TRUE,
-                                    randomization_seed=5712)
+# l_randomized_removal_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                      m_ref_data=m_ref_data,
+#                                      quantiles=seq(0,1,0.01),
+#                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                     minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                     rank_diff_outfile="randomized_rank_diff.csv",
+#                                     abs_quantiles_outfile="randomized_removal_abs_values_quantiles.csv",
+#                                     rank_diff_hist_outfile="randomized_removal_rank_diff_histogram.pdf",
+#                                     outdir="randomized_removal_6hr_Correlation_Improvement_Graphs",
+#                                     randomize_data=FALSE,
+#                                     randomize_removal=TRUE,
+#                                     randomization_seed=5712)
 
 randomized_removal_correlations=l_randomized_removal_results$Correlations
 randomized_removal_genes_removed=l_randomized_removal_results$Genes_Removed
 randomized_removal_genes_not_removed=l_randomized_removal_results$Genes_Not_Removed
 
+l_fold_change_removal_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+                                                                  m_ref_data=m_ref_data,
+                                                                  quantiles=seq(0,1,0.01),
+                                                                  sample1_name="NF54.6h",sample2_name="PB58.6h",
+                                                                  minimum_acceptable_correlation=0.8,timepoint="6h",
+                                                                  rank_diff_outfile="fold_change_rank_diff.csv",
+                                                                  abs_quantiles_outfile="fold_change_removal_abs_values_quantiles.csv",
+                                                                  rank_diff_hist_outfile="fold_change_removal_rank_diff_histogram.pdf",
+                                                                  outdir="fold_change_removal_6hr_Correlation_Improvement_Graphs",
+                                                                  randomize_data=FALSE,
+                                                                  randomize_removal=FALSE,
+                                                                  fold_change_filter = TRUE,
+                                                                  raw_fpkm_average_matrix=m_raw_fpkm_avgs,
+                                                                  randomization_seed=5712)
+
+fold_change_removal_correlations=l_fold_change_removal_results$Correlations
+fold_change_removal_genes_removed=l_fold_change_removal_results$Genes_Removed
+fold_change_removal_genes_not_removed=l_fold_change_removal_results$Genes_Not_Removed
 
 # print(head(randomized_correlations))
 # print(head(randomized_genes_removed))
 # print(head(randomized_genes_not_removed))
 
-rephasing_alg_dot_plot(nonrandom_correlations,randomized_removal_correlations,"6hr_randomized_removal")
+rephasing_alg_dot_plot(nonrandom_correlations,fold_change_removal_correlations,"6hr_fold_change_removal")
 
 #rephasing_alg_bar_plot(nonrandom_genes_removed,nonrandom_genes_not_removed,
 #                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
