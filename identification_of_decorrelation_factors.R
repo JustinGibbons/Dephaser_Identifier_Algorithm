@@ -54,6 +54,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
                                                rank_diff_hist_outfile="rank_diff_histogram.pdf",
                                      abs_quantiles_outfile="abs_values_quantiles.csv",outdir="Correlation_Improvement_Graphs",
                                      randomize_data=FALSE,
+                                     randomize_removal=FALSE,
                                      randomization_seed=5712){
   
 #m_fpkm_data is a matrix of the experimental data
@@ -147,20 +148,30 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   i=1
   number_of_genes_removed=0
   number_of_genes=nrow(df_fpkm)
-  quantile_size=ceiling(number_of_genes/length(quantiles))
+  number_of_quantiles=length(quantiles)
+  quantile_size=ceiling(number_of_genes/number_of_quantiles)
+
   #Continue while data correlation is less than minimum correlation and there is still unfiltered data
   while(old_ref_cor<minimum_acceptable_correlation & nrow(m_fpkm_data) >quantile_size){ 
     
     #Get the next quantile to remove
-    quantile=quantiles[i]
+    if(isTRUE(randomize_removal)){
+      genes_in_quantile=rownames(m_fpkm_data)[sample(1:length(rownames(m_fpkm_data)),quantile_size)]
+      quantile=number_of_quantiles-i+1
+      
+      
+    }else{
+      quantile=quantiles[i]
+      #Get the names of the genes in the given quantile
+      genes_in_quantile=names(abs_rank_quantiles)[which(abs_rank_quantiles==quantile)]
+    }
     
     #Create the outfile and set the title for the plot that results from removing the given quantile
     outfile=paste(paste(outdir,paste("corelations_with_3d7_quantile",quantile,sep="_"),sep="/"),"pdf",sep=".")
     
     title=paste("Correlations with 3D7",paste(paste(quantile,"th",sep=""), "Quantile Filtered",sep=" "),sep="\n")
     
-    #Get the names of the genes in the given quantile
-    genes_in_quantile=names(abs_rank_quantiles)[which(abs_rank_quantiles==quantile)]
+    
     
     #Only retain the data for the genes that are not in the given expression profile
     m_fpkm_data=m_fpkm_data[which(!(rownames(m_fpkm_data) %in% genes_in_quantile)),]
@@ -182,8 +193,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     #Update how well the 2 samples are correlating with each other
   
     old_ref_cor=cor(m_fpkm_data[,sample2_name],m_fpkm_data[,sample1_name],method="spearman")
-    #print(old_ref_cor)
-    #print(i)
+   
     v_correlations[[i+1]]=old_ref_cor
     
     #Get the rows corresponding to the timepoints used (the current dataset contains multiple timepoints and
@@ -199,6 +209,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     
     
     #Create the correlation plot
+    
     line_plot=ggplot(df_timepoint,aes(x=Var2,y=value,color=Strain))+
       geom_line(size=2)+
       geom_point()+
@@ -404,15 +415,33 @@ randomized_correlations=l_randomized_results$Correlations
 randomized_genes_removed=l_randomized_results$Genes_Removed
 randomized_genes_not_removed=l_randomized_results$Genes_Not_Removed
 
+l_randomized_removal_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+                                     m_ref_data=m_ref_data,
+                                     quantiles=seq(0,1,0.01),
+                                    sample1_name="NF54.6h",sample2_name="PB58.6h",
+                                    minimum_acceptable_correlation=0.8,timepoint="6h",
+                                    rank_diff_outfile="randomized_rank_diff.csv",
+                                    abs_quantiles_outfile="randomized_removal_abs_values_quantiles.csv",
+                                    rank_diff_hist_outfile="randomized_removal_rank_diff_histogram.pdf",
+                                    outdir="randomized_removal_6hr_Correlation_Improvement_Graphs",
+                                    randomize_data=FALSE,
+                                    randomize_removal=TRUE,
+                                    randomization_seed=5712)
+
+randomized_removal_correlations=l_randomized_removal_results$Correlations
+randomized_removal_genes_removed=l_randomized_removal_results$Genes_Removed
+randomized_removal_genes_not_removed=l_randomized_removal_results$Genes_Not_Removed
+
+
 # print(head(randomized_correlations))
 # print(head(randomized_genes_removed))
 # print(head(randomized_genes_not_removed))
 
-#rephasing_alg_dot_plot(nonrandom_correlations,randomized_correlations,"6hr")
+rephasing_alg_dot_plot(nonrandom_correlations,randomized_removal_correlations,"6hr_randomized_removal")
 
 #rephasing_alg_bar_plot(nonrandom_genes_removed,nonrandom_genes_not_removed,
 #                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
 
 
-df=volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
+#df=volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
                                                                                           #the denominator
