@@ -27,13 +27,21 @@ report_quantiles<-function(v_data,probs=seq(0,1,0.1),type=7,na.rm=FALSE){
   return(quantile_labled_data)
 }
 
-get_rows_coorsponding_to_samples<-function(df,unique_sample_string,ignore.case=TRUE,column_index=1){
-  #Returns the row index of if unique_sample_string is found in the column specified by column_index
-  #for that row
-  cn=df[,column_index]
+v_fpkm_sample_strings=c("NF54.6h","PB58.6h","NF54.24h","PB58.24h","NF54.38h","PB58.38h",
+                        "NF54.48h","PB58.48h")
+
+
+
+get_columns_coorsponding_to_samples<-function(df_expression,unique_sample_string,ignore.case=TRUE){
+  cn=colnames(df_expression)
   return(grep(unique_sample_string,cn,ignore.case = ignore.case))
 }
 
+average_columns_by_unique_sample_strings<-function(df,v_sample_strings,ignore.case=TRUE){
+  
+  averaged_columns=sapply(v_sample_strings,function(g) rowMeans(df[,get_columns_coorsponding_to_samples(df,g,ignore.case=ignore.case)]))
+  return(averaged_columns)
+}
 
 
 ##The Function that performs the filtering specifically for the NF54 and PB58 Datasets
@@ -61,6 +69,9 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
 
   #Create the out directory
   dir.create(outdir)
+  
+  #Get the genes originally in the data set to figure out which genes were removed
+  v_original_genes=rownames(m_fpkm_data)
   ##Get the ranks of the values
 
   #Get the absolute rank difference for each gene between the samples
@@ -83,8 +94,7 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     
     colnames(m_fpkm_data)=matrix_colnames
     rownames(m_fpkm_data)=matrix_rownames
-    View(m_fpkm_data)
-    
+
     m_fpkm_ranked=rank_matrix_values(m_fpkm_data)
     v_sample1=m_fpkm_ranked[,sample1_name]
     v_sample2=m_fpkm_ranked[,sample2_name]
@@ -127,10 +137,15 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   write.csv(df_quantiles,abs_quantiles_outfile)
   quantiles=sort(unique(abs_rank_quantiles),decreasing=TRUE)
   
+  #Create a vector to store the changes in correlation
+  v_correlations=vector("numeric",length=length(quantiles)+1)
   old_ref_cor=cor(x=v_sample1,y=v_sample2,method="spearman")
+  v_correlations[[1]]=old_ref_cor
+  
   
   #Loop to perform the filtering
   i=1
+  number_of_genes_removed=0
   number_of_genes=nrow(df_fpkm)
   quantile_size=ceiling(number_of_genes/length(quantiles))
   #Continue while data correlation is less than minimum correlation and there is still unfiltered data
@@ -150,6 +165,8 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     #Only retain the data for the genes that are not in the given expression profile
     m_fpkm_data=m_fpkm_data[which(!(rownames(m_fpkm_data) %in% genes_in_quantile)),]
     m_ref_data=m_ref_data[which(!(rownames(m_ref_data) %in% genes_in_quantile)),]
+    
+    number_of_genes_removed=number_of_genes_removed+length(genes_in_quantile)
 
     
     #Get the Correlations of the samples with the reference and put them into a form ggplot can use
@@ -165,6 +182,9 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     #Update how well the 2 samples are correlating with each other
   
     old_ref_cor=cor(m_fpkm_data[,sample2_name],m_fpkm_data[,sample1_name],method="spearman")
+    #print(old_ref_cor)
+    #print(i)
+    v_correlations[[i+1]]=old_ref_cor
     
     #Get the rows corresponding to the timepoints used (the current dataset contains multiple timepoints and
     #only a single timepoint is of interest for any given comparision)
@@ -195,52 +215,201 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     
     
   }
+  #Remove the zero correlations from the vector. The zero values are left over from vector initialization.
+  v_correlations=v_correlations[v_correlations != 0]
   
+  v_genes_remaining=rownames(m_fpkm_data)
+  v_genes_removed=setdiff(v_original_genes,v_genes_remaining)
+  print(length(v_genes_removed))
   
-  #Clear the workspace
-  rm(list=ls())
+  return_list=list("Correlations"=v_correlations,
+                   "Genes_Removed"=v_genes_removed,
+                   "Genes_Not_Removed"=v_genes_remaining)
   
 }
 
+
+rephasing_alg_dot_plot<-function(non_random_data_correlations, random_data_correlations,outfile_stem){
+  #Creates plots to access the performance of the re-phasing algorthm
+  
+  title="Correlation Improvements\nNonrandom vs Random Data"
+  
+  #Rate of correlation improvement graph
+  
+  outfile=paste(paste(outfile_stem,"correlation_improvement",sep="_"),"pdf",sep=".")
+  #outfile="6hr_correlation_improvement.pdf"
+  Iterations=seq(1:length(non_random_data_correlations))
+  Correlations=non_random_data_correlations
+  df_nonrandom=data.frame(Iterations,Correlations)
+  df_nonrandom$Data_Type="Nonrandom"
+  
+  Iterations=seq(1:length(random_data_correlations))
+  Correlations=random_data_correlations
+  df_random=data.frame(Iterations,Correlations)
+  df_random$Data_Type="Random"
+  
+  df_merged=rbind(df_nonrandom,df_random)
+  
+  line_plot=ggplot(df_merged,aes(x=Iterations,y=Correlations,color=Data_Type))+
+    geom_point(size=2)+ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=26.4,face="bold"))+
+    scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")+
+    scale_color_manual(values=c("#ff1aff","#b800e6"))
+  line_plot=line_plot+guides(fill=guide_legend(title="Data Type"))
+  line_plot=line_plot+theme(axis.text = element_text(size=26),axis.title=element_text(size=26))
+  line_plot=line_plot+theme(legend.text=element_text(size=20),legend.key.size=unit(1.5,"cm"))
+  pdf(outfile,width=8,height=4.5)
+  print(line_plot)
+  dev.off()
+  
+}
+
+rephasing_alg_bar_plot<-function(v_nonrandom_genes_removed,
+                                  v_nonrandom_genes_not_removed,
+                                  v_random_genes_removed,
+                                  v_random_genes_not_removed,outfile_stem){
+  #Creates a bar plot of the fraction of total genes removed by the algorithm
+  
+  #Get the total number of genes in each category
+  number_of_nonrandom_genes_removed=length(v_nonrandom_genes_removed)
+  total_number_of_nonrandom_genes=length(union(v_nonrandom_genes_removed,v_nonrandom_genes_not_removed))
+  percent_nonrandom_removed=(number_of_nonrandom_genes_removed/total_number_of_nonrandom_genes)*100
+  print(percent_nonrandom_removed)
+  
+  number_of_random_genes_removed=length(v_random_genes_removed)
+  total_number_of_random_genes=length(union(v_random_genes_removed,v_random_genes_not_removed))
+  percent_random_removed=(number_of_random_genes_removed/total_number_of_random_genes)*100
+  print(percent_random_removed)
+  
+  if(total_number_of_nonrandom_genes != total_number_of_random_genes){
+    print("Warning: Total number of genes was not equal on the nonrandom and random groups")
+    print("Your graph will not be made!")
+  }else{
+    outfile=paste(paste(outfile_stem,"barplot",sep="_"),"pdf",sep=".")
+    df=data.frame(Data_Type=c("Nonrandom","Random"),
+                  Percent_Removed=c(percent_nonrandom_removed,percent_random_removed))
+
+    plot=ggplot(data=df, aes(x=Data_Type,y=Percent_Removed))
+    plot=plot+geom_bar(stat="identity")
+    
+    pdf(outfile)
+    print(plot)
+    dev.off()
+    
+  }
+  
+  
+}
+
+volcano_plot<-function(m_average_expression, group1_identifier, group2_identifier,flagged_genes){
+  #Creates a volcano plot using the expression data in the supplied matrix
+  #Input is a matrix were the rows are genes and the columns are samples. Assumes 1 has already been added
+  #to each sample and replicates are averaged.
+  #The different sample types which are identied by the variables group1_identifier and group2_identifier.
+  #flagged_genes is a vector of the genes that are too be flagged with a different color
+  #The fold change is than calculated as log2(group1/group2)
+  #xaxis is the average expression in group1
+  
+  outfile=paste(paste(group1_identifier,group2_identifier,"volano_plot",sep="_"),"pdf",sep=".")
+  
+  
+  fold_change=log2(m_average_expression[,group1_identifier]/m_average_expression[,group2_identifier])
+  gene_flagged=rownames(m_average_expression) %in% flagged_genes
+  df=data.frame(GeneID=rownames(m_average_expression),Fold_Change=fold_change,
+                Reference_Expression=log2(m_average_expression[,group1_identifier]),Gene_Flagged=gene_flagged)
+  
+  
+  plot=ggplot(df,aes(x=Reference_Expression,y=Fold_Change,color=Gene_Flagged))
+  plot=plot+geom_point(size=2)
+  #ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=26.4,face="bold"))+
+  #   scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")+
+  #   scale_color_manual(values=c("#ff1aff","#b800e6"))
+  # line_plot=line_plot+guides(fill=guide_legend(title="Data Type"))
+  # line_plot=line_plot+theme(axis.text = element_text(size=26),axis.title=element_text(size=26))
+  # line_plot=line_plot+theme(legend.text=element_text(size=20),legend.key.size=unit(1.5,"cm"))
+  pdf(outfile)
+  print(plot)
+  dev.off()
+
+  
+}
 ##########Start Analysis
 
 #Infiles
 
 ref_data_infile="Derisi_3d7_ref_data_avg.txt"
 sample_fpkm_infile="experimental_data_averages.txt"
-
+sample_raw_fpkm_infile="nf54_pb58_gene_fpkm.tab"
 #Read in the data
 df_ref_data=read.delim(ref_data_infile)
 df_fpkm=read.delim(sample_fpkm_infile)
+df_raw_fpkm=read.delim(sample_raw_fpkm_infile)
 
 #Format the data for the script
 m_ref_data=as.matrix(df_ref_data[,2:length(df_ref_data)])
 rownames(m_ref_data)=df_ref_data[,1]
 m_fpkm_data=as.matrix(df_fpkm[,2:length(df_fpkm)])
 rownames(m_fpkm_data)=df_fpkm[,1]
+m_raw_fpkm=as.matrix(df_raw_fpkm[,2:length(df_raw_fpkm)])+1 #Adding 1 to everything to pervent zero division
+rownames(m_raw_fpkm)=df_raw_fpkm[,1]
+m_raw_fpkm=m_raw_fpkm[rownames(m_raw_fpkm) %in% rownames(m_fpkm_data),] #Only keep genes that are in m_fpkm_data
+
+#Average the experimental data
+v_fpkm_sample_strings=c("NF54.6h","PB58.6h","NF54.24h","PB58.24h","NF54.38h","PB58.38h",
+                        "NF54.48h","PB58.48h")
+m_raw_fpkm_avgs=average_columns_by_unique_sample_strings(m_raw_fpkm,v_fpkm_sample_strings)
+
+
+
+
 ####Run on real data
- # identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
- #                                     m_ref_data=m_ref_data,
- #                                     quantiles=seq(0,1,0.01),
- #                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
- #                                     minimum_acceptable_correlation=0.8,timepoint="6h",
- #                                     rank_diff_outfile="rank_diff.csv",
- #                                     abs_quantiles_outfile="abs_values_quantiles.csv",
- #                                     rank_diff_hist_outfile="rank_diff_histogram.pdf",
- #                                     outdir="6hr_Correlation_Improvement_Graphs",
- #                                     randomize_data=FALSE,
- #                                     randomization_seed=5712)
+# l_nonrandom_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                      m_ref_data=m_ref_data,
+#                                      quantiles=seq(0,1,0.01),
+#                                      sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                      minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                      rank_diff_outfile="rank_diff.csv",
+#                                      abs_quantiles_outfile="abs_values_quantiles.csv",
+#                                      rank_diff_hist_outfile="rank_diff_histogram.pdf",
+#                                      outdir="6hr_Correlation_Improvement_Graphs",
+#                                      randomize_data=FALSE,
+#                                      randomization_seed=5712)
+nonrandom_correlations=l_nonrandom_results$Correlations
+nonrandom_genes_removed=l_nonrandom_results$Genes_Removed
+nonrandom_genes_not_removed=l_nonrandom_results$Genes_Not_Removed
+
+# print(head(nonrandom_correlations))
+# print(head(nonrandom_genes_removed))
+# print(head(nonrandom_genes_not_removed))
+
+
 
 
 ####Run on randomized data
-identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
-                                     m_ref_data=m_ref_data,
-                                     quantiles=seq(0,1,0.01),
-                                    sample1_name="NF54.6h",sample2_name="PB58.6h",
-                                    minimum_acceptable_correlation=0.8,timepoint="6h",
-                                    rank_diff_outfile="randomized_rank_diff.csv",
-                                    abs_quantiles_outfile="randomized_abs_values_quantiles.csv",
-                                    rank_diff_hist_outfile="randomized_rank_diff_histogram.pdf",
-                                    outdir="randomized_6hr_Correlation_Improvement_Graphs",
-                                    randomize_data=TRUE,
-                                    randomization_seed=5712)
+# l_randomized_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                      m_ref_data=m_ref_data,
+#                                      quantiles=seq(0,1,0.01),
+#                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                     minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                     rank_diff_outfile="randomized_rank_diff.csv",
+#                                     abs_quantiles_outfile="randomized_abs_values_quantiles.csv",
+#                                     rank_diff_hist_outfile="randomized_rank_diff_histogram.pdf",
+#                                     outdir="randomized_6hr_Correlation_Improvement_Graphs",
+#                                     randomize_data=TRUE,
+#                                     randomization_seed=5712)
+
+randomized_correlations=l_randomized_results$Correlations
+randomized_genes_removed=l_randomized_results$Genes_Removed
+randomized_genes_not_removed=l_randomized_results$Genes_Not_Removed
+
+# print(head(randomized_correlations))
+# print(head(randomized_genes_removed))
+# print(head(randomized_genes_not_removed))
+
+#rephasing_alg_dot_plot(nonrandom_correlations,randomized_correlations,"6hr")
+
+#rephasing_alg_bar_plot(nonrandom_genes_removed,nonrandom_genes_not_removed,
+#                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
+
+
+volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
+                                                                                          #the denominator
