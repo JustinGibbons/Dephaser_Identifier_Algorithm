@@ -192,6 +192,10 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
       gene_average=(raw_fpkm_average_matrix[,sample1_name]+raw_fpkm_average_matrix[,sample2_name])/2
       #print(head(gene_average))
       gene_weights=percentile(gene_average)^weighted_rank_constant
+      #rank_diff=(rank_diff-min(rank_diff)*(-1))/(max(rank_diff)-min(rank_diff))
+      rank_diff=rank_diff/max(abs(rank_diff))
+      print(min(rank_diff))
+      print(max(rank_diff))
       rank_diff=rank_diff*gene_weights
       
     }
@@ -570,20 +574,20 @@ average_expression_removal_genes_not_removed=l_average_expression_removal_result
 # print(head(randomized_genes_removed))
 # print(head(randomized_genes_not_removed))
 
-# l_weighted_rank2_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
-#                                      m_ref_data=m_ref_data,
-#                                      quantiles=seq(0,1,0.01),
-#                                      sample1_name="NF54.6h",sample2_name="PB58.6h",
-#                                      minimum_acceptable_correlation=0.8,timepoint="6h",
-#                                      rank_diff_outfile="weighted_rank2_rank_diff.csv",
-#                                      abs_quantiles_outfile="weighted_rank2_abs_values_quantiles.csv",
-#                                      rank_diff_hist_outfile="weighted_rank2_rank_diff_histogram.pdf",
-#                                      outdir="weighted_rank2_6hr_Correlation_Improvement_Graphs",
-#                                      randomize_data=FALSE,
-#                                      weighted_rank = TRUE,
-#                                      raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
-#                                      weighted_rank_constant = 2,
-#                                      randomization_seed=5712)
+l_weighted_rank2_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+                                     m_ref_data=m_ref_data,
+                                     quantiles=seq(0,1,0.01),
+                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
+                                     minimum_acceptable_correlation=0.8,timepoint="6h",
+                                     rank_diff_outfile="weighted_rank2_rank_diff.csv",
+                                     abs_quantiles_outfile="weighted_rank2_abs_values_quantiles.csv",
+                                     rank_diff_hist_outfile="weighted_rank2_rank_diff_histogram.pdf",
+                                     outdir="weighted_rank2_6hr_Correlation_Improvement_Graphs",
+                                     randomize_data=FALSE,
+                                     weighted_rank = TRUE,
+                                     raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
+                                     weighted_rank_constant = 2,
+                                     randomization_seed=5712)
 
 weighted_rank2_correlations=l_weighted_rank2_results$Correlations
 weighted_rank2_genes_removed=l_weighted_rank2_results$Genes_Removed
