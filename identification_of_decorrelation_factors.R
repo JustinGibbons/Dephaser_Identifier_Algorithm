@@ -43,6 +43,20 @@ average_columns_by_unique_sample_strings<-function(df,v_sample_strings,ignore.ca
   return(averaged_columns)
 }
 
+percentile<-function(input_vector){
+  #Returns a vector of the percentile for the values in input_vector
+  #There's probably a more efficeint way to do this than a for loop
+  percentile_vector=vector(mode="numeric",length=length(input_vector))
+  for(i in seq(1:length(input_vector))){
+    value=input_vector[[i]]
+    number_of_items_less_than_value=sum(I(input_vector<=value))
+    percentile_vector[[i]]=number_of_items_less_than_value
+    
+  }
+  percentile_vector=percentile_vector/length(input_vector)
+  
+  return(percentile_vector)
+}
 
 ##The Function that performs the filtering specifically for the NF54 and PB58 Datasets
 identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
@@ -58,7 +72,10 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
                                      fold_change_filter=FALSE,
                                      average_expression_filter=FALSE,
                                      raw_fpkm_average_matrix=NULL,
-                                     randomization_seed=5712){
+                                     weighted_rank=FALSE,
+                                     weighted_rank_constant=2,
+                                     randomization_seed=5712
+                                     ){
   
 #m_fpkm_data is a matrix of the experimental data
 #m_ref_data is a matrix of the reference data used to check the life-cycle correlations
@@ -171,6 +188,13 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
     v_sample2=m_fpkm_ranked[,sample2_name]
     
     rank_diff=v_sample2-v_sample1
+    if(isTRUE(weighted_rank)){
+      gene_average=(raw_fpkm_average_matrix[,sample1_name]+raw_fpkm_average_matrix[,sample2_name])/2
+      #print(head(gene_average))
+      gene_weights=percentile(gene_average)^weighted_rank_constant
+      rank_diff=rank_diff*gene_weights
+      
+    }
     df_rankdiff=data.frame(gene=names(rank_diff),rank.diff=rank_diff)
     write.csv(df_rankdiff,rank_diff_outfile)
     abs_rank_diff=abs(rank_diff)
@@ -362,7 +386,7 @@ rephasing_alg_bar_plot<-function(v_nonrandom_genes_removed,
   
 }
 
-volcano_plot<-function(m_average_expression, group1_identifier, group2_identifier,flagged_genes,use_rankdiff=FALSE){
+volcano_plot<-function(m_average_expression, group1_identifier, outfile_stem=NULL,group2_identifier,flagged_genes,use_rankdiff=FALSE){
   #Creates a volcano plot using the expression data in the supplied matrix
   #Input is a matrix were the rows are genes and the columns are samples. Assumes 1 has already been added
   #to each sample and replicates are averaged.
@@ -374,7 +398,7 @@ volcano_plot<-function(m_average_expression, group1_identifier, group2_identifie
   
   
   if(isTRUE(use_rankdiff)){
-    outfile=paste(paste(group1_identifier,group2_identifier,"rank_diff_volano_plot",sep="_"),"pdf",sep=".")
+    outfile=paste(paste(outfile_stem,group1_identifier,group2_identifier,"rank_diff_volano_plot",sep="_"),"pdf",sep=".")
     ranked_matrix=rank_matrix_values(m_average_expression)
     rank_diff=ranked_matrix[,group1_identifier]-ranked_matrix[,group2_identifier]
     gene_flagged=rownames(m_average_expression) %in% flagged_genes
@@ -388,7 +412,7 @@ volcano_plot<-function(m_average_expression, group1_identifier, group2_identifie
     
   }else{
   
-  outfile=paste(paste(group1_identifier,group2_identifier,"fold_change_volano_plot",sep="_"),"pdf",sep=".")
+  outfile=paste(paste(outfile_stem,group1_identifier,group2_identifier,"fold_change_volano_plot",sep="_"),"pdf",sep=".")
   fold_change=log2(m_average_expression[,group1_identifier]/m_average_expression[,group2_identifier])
   gene_flagged=rownames(m_average_expression) %in% flagged_genes
   average_expression=(m_average_expression[,group1_identifier]+m_average_expression[,group2_identifier])/2
@@ -546,6 +570,25 @@ average_expression_removal_genes_not_removed=l_average_expression_removal_result
 # print(head(randomized_genes_removed))
 # print(head(randomized_genes_not_removed))
 
+# l_weighted_rank2_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                      m_ref_data=m_ref_data,
+#                                      quantiles=seq(0,1,0.01),
+#                                      sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                      minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                      rank_diff_outfile="weighted_rank2_rank_diff.csv",
+#                                      abs_quantiles_outfile="weighted_rank2_abs_values_quantiles.csv",
+#                                      rank_diff_hist_outfile="weighted_rank2_rank_diff_histogram.pdf",
+#                                      outdir="weighted_rank2_6hr_Correlation_Improvement_Graphs",
+#                                      randomize_data=FALSE,
+#                                      weighted_rank = TRUE,
+#                                      raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
+#                                      weighted_rank_constant = 2,
+#                                      randomization_seed=5712)
+
+weighted_rank2_correlations=l_weighted_rank2_results$Correlations
+weighted_rank2_genes_removed=l_weighted_rank2_results$Genes_Removed
+weighted_rank2_genes_not_removed=l_weighted_rank2_results$Genes_Not_Removed
+
 l_removing_type=list("Normalized Expression\nRank Difference"=nonrandom_correlations,
                      "Random Removal"=randomized_removal_correlations,
                      "Fold Change Removal"=fold_change_removal_correlations,
@@ -556,8 +599,12 @@ l_removing_type=list("Normalized Expression\nRank Difference"=nonrandom_correlat
 #                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
 
 
-volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
+volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",flagged_genes=nonrandom_genes_removed) #Want the reference to be
                                                                                           #the denominator
 
-volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed,use_rankdiff = TRUE) #Want the reference to be
+# volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed,use_rankdiff = TRUE) #Want the reference to be
 #the denominator
+
+volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",
+             outfile_stem="percentile_weighted2",weighted_rank2_genes_removed) #Want the reference to be
+                                                                                           #the denominator
