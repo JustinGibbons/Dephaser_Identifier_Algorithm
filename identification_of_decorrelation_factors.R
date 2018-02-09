@@ -362,7 +362,7 @@ rephasing_alg_bar_plot<-function(v_nonrandom_genes_removed,
   
 }
 
-volcano_plot<-function(m_average_expression, group1_identifier, group2_identifier,flagged_genes){
+volcano_plot<-function(m_average_expression, group1_identifier, group2_identifier,flagged_genes,use_rankdiff=FALSE){
   #Creates a volcano plot using the expression data in the supplied matrix
   #Input is a matrix were the rows are genes and the columns are samples. Assumes 1 has already been added
   #to each sample and replicates are averaged.
@@ -371,20 +371,37 @@ volcano_plot<-function(m_average_expression, group1_identifier, group2_identifie
   #The fold change is than calculated as log2(group1/group2)
   #xaxis is the average expression in the 2 groups
   
-  outfile=paste(paste(group1_identifier,group2_identifier,"volano_plot",sep="_"),"pdf",sep=".")
   
   
+  if(isTRUE(use_rankdiff)){
+    outfile=paste(paste(group1_identifier,group2_identifier,"rank_diff_volano_plot",sep="_"),"pdf",sep=".")
+    ranked_matrix=rank_matrix_values(m_average_expression)
+    rank_diff=ranked_matrix[,group1_identifier]-ranked_matrix[,group2_identifier]
+    gene_flagged=rownames(m_average_expression) %in% flagged_genes
+    average_expression=(m_average_expression[,group1_identifier]+m_average_expression[,group2_identifier])/2
+    
+    df=data.frame(GeneID=rownames(m_average_expression),Rank_Diff=rank_diff,
+                  Average_Expression=log10(average_expression),
+                  Gene_Flagged=gene_flagged)
+    plot=ggplot(df,aes(x=Average_Expression,y=Rank_Diff,color=Gene_Flagged))
+    
+    
+  }else{
+  
+  outfile=paste(paste(group1_identifier,group2_identifier,"fold_change_volano_plot",sep="_"),"pdf",sep=".")
   fold_change=log2(m_average_expression[,group1_identifier]/m_average_expression[,group2_identifier])
   gene_flagged=rownames(m_average_expression) %in% flagged_genes
   average_expression=(m_average_expression[,group1_identifier]+m_average_expression[,group2_identifier])/2
   df=data.frame(GeneID=rownames(m_average_expression),Fold_Change=fold_change,
-                Average_Expression=log2(average_expression),
+                Average_Expression=log10(average_expression),
                 Gene_Flagged=gene_flagged)
-  
-  
   plot=ggplot(df,aes(x=Average_Expression,y=Fold_Change,color=Gene_Flagged))
+  #plot=plot+scale_y_continuous(limits=c(-5,5))
+  }
+  
+  
+  
   plot=plot+geom_point(size=2)
-  plot=plot+scale_y_continuous(limits=c(-2.5,2.5))
   #ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=26.4,face="bold"))+
   #   scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")+
   #   scale_color_manual(values=c("#ff1aff","#b800e6"))
@@ -397,6 +414,8 @@ volcano_plot<-function(m_average_expression, group1_identifier, group2_identifie
 
   
 }
+
+
 ##########Start Analysis
 
 #Infiles
@@ -416,11 +435,12 @@ m_fpkm_data=as.matrix(df_fpkm[,2:length(df_fpkm)])
 rownames(m_fpkm_data)=df_fpkm[,1]
 m_raw_fpkm=as.matrix(df_raw_fpkm[,2:length(df_raw_fpkm)])+1 #Adding 1 to everything to pervent zero division
 rownames(m_raw_fpkm)=df_raw_fpkm[,1]
-m_raw_fpkm=m_raw_fpkm[rownames(m_raw_fpkm) %in% rownames(m_fpkm_data),] #Only keep genes that are in m_fpkm_data
+m_raw_filtered_fpkm=m_raw_fpkm[rownames(m_raw_fpkm) %in% rownames(m_fpkm_data),] #Only keep genes that are in m_fpkm_data
 
 #Average the experimental data
 v_fpkm_sample_strings=c("NF54.6h","PB58.6h","NF54.24h","PB58.24h","NF54.38h","PB58.38h",
                         "NF54.48h","PB58.48h")
+m_raw_filtered_fpkm_avgs=average_columns_by_unique_sample_strings(m_raw_filtered_fpkm,v_fpkm_sample_strings)
 m_raw_fpkm_avgs=average_columns_by_unique_sample_strings(m_raw_fpkm,v_fpkm_sample_strings)
 
 
@@ -495,7 +515,7 @@ randomized_removal_genes_not_removed=l_randomized_removal_results$Genes_Not_Remo
 #                                                                   randomize_data=FALSE,
 #                                                                   randomize_removal=FALSE,
 #                                                                   fold_change_filter = TRUE,
-#                                                                   raw_fpkm_average_matrix=m_raw_fpkm_avgs,
+#                                                                   raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
 #                                                                   randomization_seed=5712)
 
 fold_change_removal_correlations=l_fold_change_removal_results$Correlations
@@ -515,7 +535,7 @@ fold_change_removal_genes_not_removed=l_fold_change_removal_results$Genes_Not_Re
 #                                                                    randomize_removal=FALSE,
 #                                                                    fold_change_filter = FALSE,
 #                                                                    average_expression_filter = TRUE,
-#                                                                    raw_fpkm_average_matrix=m_raw_fpkm_avgs,
+#                                                                    raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
 #                                                                    randomization_seed=5712)
 
 average_expression_removal_correlations=l_average_expression_removal_results$Correlations
@@ -536,5 +556,8 @@ l_removing_type=list("Normalized Expression\nRank Difference"=nonrandom_correlat
 #                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
 
 
-#df=volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
+volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed) #Want the reference to be
                                                                                           #the denominator
+
+volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed,use_rankdiff = TRUE) #Want the reference to be
+#the denominator
