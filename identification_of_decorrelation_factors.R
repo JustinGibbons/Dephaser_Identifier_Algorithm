@@ -344,7 +344,7 @@ rephasing_alg_dot_plot<-function(sampling_correlations_list,outfile_stem){
     plot=plot+scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")
     plot=plot+guides(color=guide_legend(title="Data Type"))
     plot=plot+theme(axis.text = element_text(size=22),axis.title=element_text(size=22))
-    plot=plot+theme(legend.text=element_text(size=15),legend.key.size=unit(1.5,"cm"))
+    plot=plot+theme(legend.text=element_text(size=15),legend.key.size=unit(1.5,"cm"),legend.title=element_text(size=14))
     pdf(outfile,width=8,height=4.5)
     print(plot)
     dev.off()
@@ -669,7 +669,7 @@ weighted_rank1_genes_not_removed=l_weighted_rank1_results$Genes_Not_Removed
 #                      "Fold Change Removal"=fold_change_removal_correlations,
 #                      "Average Expression Removal"=average_expression_removal_correlations)
 
-l_removing_type=list("Normalized Expression\nRank Difference"=nonrandom_correlations,
+l_removing_type=list("Rephasing Algorithm"=nonrandom_correlations,
                      "Random Removal"=randomized_removal_correlations,
                      "Average Expression Removal"=average_expression_removal_correlations)
 
