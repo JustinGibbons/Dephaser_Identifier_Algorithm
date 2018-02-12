@@ -337,11 +337,12 @@ rephasing_alg_dot_plot<-function(sampling_correlations_list,outfile_stem){
     df_list[[i]]=df
   }
   df_merged=reshape::merge_all(df_list)
+  df_merged$Data_Type=with(df_merged,reorder(Data_Type,-Correlations))
   View(df_merged)
     plot=ggplot(df_merged,aes(x=Iterations,y=Correlations,color=Data_Type))
     plot=plot+geom_point(size=2)+ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=23,face="bold"))
     plot=plot+scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")
-    plot=plot+guides(fill=guide_legend(title="Data Type"))
+    plot=plot+guides(color=guide_legend(title="Data Type"))
     plot=plot+theme(axis.text = element_text(size=22),axis.title=element_text(size=22))
     plot=plot+theme(legend.text=element_text(size=15),legend.key.size=unit(1.5,"cm"))
     pdf(outfile,width=8,height=4.5)
