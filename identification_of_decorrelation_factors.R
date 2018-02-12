@@ -318,40 +318,71 @@ identify_dephasing_drivers_nf54_pb58<-function(m_fpkm_data,m_ref_data,
   
 }
 
-
-rephasing_alg_dot_plot<-function(non_random_data_correlations, random_data_correlations,outfile_stem){
+rephasing_alg_dot_plot<-function(sampling_correlations_list,outfile_stem){
   #Creates plots to access the performance of the re-phasing algorthm
   
   title="Correlation Improvements\nNonrandom vs Random Data"
-  
-  #Rate of correlation improvement graph
-  
   outfile=paste(paste(outfile_stem,"correlation_improvement",sep="_"),"pdf",sep=".")
-  #outfile="6hr_correlation_improvement.pdf"
-  # Iterations=seq(1:length(non_random_data_correlations))
-  # Correlations=non_random_data_correlations
-  # df_nonrandom=data.frame(Iterations,Correlations)
-  # df_nonrandom$Data_Type="Nonrandom"
-  # 
-  # Iterations=seq(1:length(random_data_correlations))
-  # Correlations=random_data_correlations
-  # df_random=data.frame(Iterations,Correlations)
-  # df_random$Data_Type="Random"
-  # 
-  # df_merged=rbind(df_nonrandom,df_random)
-  # 
-  # line_plot=ggplot(df_merged,aes(x=Iterations,y=Correlations,color=Data_Type))+
-  #   geom_point(size=2)+ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=26.4,face="bold"))+
-  #   scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")+
-  #   scale_color_manual(values=c("#ff1aff","#b800e6"))
-  # line_plot=line_plot+guides(fill=guide_legend(title="Data Type"))
-  # line_plot=line_plot+theme(axis.text = element_text(size=26),axis.title=element_text(size=26))
-  # line_plot=line_plot+theme(legend.text=element_text(size=20),legend.key.size=unit(1.5,"cm"))
-  # pdf(outfile,width=8,height=4.5)
-  # print(line_plot)
-  # dev.off()
   
+  df_list=vector(mode="list",length=length(sampling_correlations_list))
+  
+  for(i in seq(1:length(sampling_correlations_list))){
+    Correlations=sampling_correlations_list[[i]]
+    sample_name=names(sampling_correlations_list)[[i]]
+    
+    Iterations=seq(1:length(Correlations))
+    df=data.frame(Iterations,Correlations)
+    df$Data_Type=sample_name
+    #print(head(df))
+    df_list[[i]]=df
+  }
+  df_merged=reshape::merge_all(df_list)
+  View(df_merged)
+    plot=ggplot(df_merged,aes(x=Iterations,y=Correlations,color=Data_Type))
+    plot=plot+geom_point(size=2)+ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=23,face="bold"))
+    plot=plot+scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")
+    plot=plot+guides(fill=guide_legend(title="Data Type"))
+    plot=plot+theme(axis.text = element_text(size=22),axis.title=element_text(size=22))
+    plot=plot+theme(legend.text=element_text(size=15),legend.key.size=unit(1.5,"cm"))
+    pdf(outfile,width=8,height=4.5)
+    print(plot)
+    dev.off()
 }
+
+
+# rephasing_alg_dot_plot<-function(non_random_data_correlations, random_data_correlations,outfile_stem){
+#   #Creates plots to access the performance of the re-phasing algorthm
+# 
+#   title="Correlation Improvements\nNonrandom vs Random Data"
+# 
+#   #Rate of correlation improvement graph
+# 
+#   outfile=paste(paste(outfile_stem,"correlation_improvement",sep="_"),"pdf",sep=".")
+#   #outfile="6hr_correlation_improvement.pdf"
+#   # Iterations=seq(1:length(non_random_data_correlations))
+#   # Correlations=non_random_data_correlations
+#   # df_nonrandom=data.frame(Iterations,Correlations)
+#   # df_nonrandom$Data_Type="Nonrandom"
+#   #
+#   # Iterations=seq(1:length(random_data_correlations))
+#   # Correlations=random_data_correlations
+#   # df_random=data.frame(Iterations,Correlations)
+#   # df_random$Data_Type="Random"
+#   #
+#   # df_merged=rbind(df_nonrandom,df_random)
+#   #
+#   # line_plot=ggplot(df_merged,aes(x=Iterations,y=Correlations,color=Data_Type))+
+#   #   geom_point(size=2)+ggtitle(title)+theme(plot.title = element_text(hjust = 0.5,size=26.4,face="bold"))+
+#   #   scale_x_continuous(name="Algorithm Iteration")+ylab("Spearman Correlation")+
+#   #   scale_color_manual(values=c("#ff1aff","#b800e6"))
+#   # line_plot=line_plot+guides(fill=guide_legend(title="Data Type"))
+#   # line_plot=line_plot+theme(axis.text = element_text(size=26),axis.title=element_text(size=26))
+#   # line_plot=line_plot+theme(legend.text=element_text(size=20),legend.key.size=unit(1.5,"cm"))
+#   # pdf(outfile,width=8,height=4.5)
+#   # print(line_plot)
+#   # dev.off()
+# 
+# }
 
 rephasing_alg_bar_plot<-function(v_nonrandom_genes_removed,
                                   v_nonrandom_genes_not_removed,
@@ -574,41 +605,93 @@ average_expression_removal_genes_not_removed=l_average_expression_removal_result
 # print(head(randomized_genes_removed))
 # print(head(randomized_genes_not_removed))
 
-l_weighted_rank2_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
-                                     m_ref_data=m_ref_data,
-                                     quantiles=seq(0,1,0.01),
-                                     sample1_name="NF54.6h",sample2_name="PB58.6h",
-                                     minimum_acceptable_correlation=0.8,timepoint="6h",
-                                     rank_diff_outfile="weighted_rank2_rank_diff.csv",
-                                     abs_quantiles_outfile="weighted_rank2_abs_values_quantiles.csv",
-                                     rank_diff_hist_outfile="weighted_rank2_rank_diff_histogram.pdf",
-                                     outdir="weighted_rank2_6hr_Correlation_Improvement_Graphs",
-                                     randomize_data=FALSE,
-                                     weighted_rank = TRUE,
-                                     raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
-                                     weighted_rank_constant = 2,
-                                     randomization_seed=5712)
+# l_weighted_rank2_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                      m_ref_data=m_ref_data,
+#                                      quantiles=seq(0,1,0.01),
+#                                      sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                      minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                      rank_diff_outfile="weighted_rank2_rank_diff.csv",
+#                                      abs_quantiles_outfile="weighted_rank2_abs_values_quantiles.csv",
+#                                      rank_diff_hist_outfile="weighted_rank2_rank_diff_histogram.pdf",
+#                                      outdir="weighted_rank2_6hr_Correlation_Improvement_Graphs",
+#                                      randomize_data=FALSE,
+#                                      weighted_rank = TRUE,
+#                                      raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
+#                                      weighted_rank_constant = 2,
+#                                      randomization_seed=5712)
 
 weighted_rank2_correlations=l_weighted_rank2_results$Correlations
 weighted_rank2_genes_removed=l_weighted_rank2_results$Genes_Removed
 weighted_rank2_genes_not_removed=l_weighted_rank2_results$Genes_Not_Removed
 
+# l_weighted_rank1.5_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                                               m_ref_data=m_ref_data,
+#                                                               quantiles=seq(0,1,0.01),
+#                                                               sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                                               minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                                               rank_diff_outfile="weighted_rank1.5_rank_diff.csv",
+#                                                               abs_quantiles_outfile="weighted_rank_abs_values_quantiles.csv",
+#                                                               rank_diff_hist_outfile="weighted_rank1.5_rank_diff_histogram.pdf",
+#                                                               outdir="weighted_rank1.5_6hr_Correlation_Improvement_Graphs",
+#                                                               randomize_data=FALSE,
+#                                                               weighted_rank = TRUE,
+#                                                               raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
+#                                                               weighted_rank_constant = 1.5,
+#                                                               randomization_seed=5712)
+
+weighted_rank1.5_correlations=l_weighted_rank1.5_results$Correlations
+weighted_rank1.5_genes_removed=l_weighted_rank1.5_results$Genes_Removed
+weighted_rank1.5_genes_not_removed=l_weighted_rank1.5_results$Genes_Not_Removed
+
+# l_weighted_rank1_results=identify_dephasing_drivers_nf54_pb58(m_fpkm_data=m_fpkm_data,
+#                                                               m_ref_data=m_ref_data,
+#                                                               quantiles=seq(0,1,0.01),
+#                                                               sample1_name="NF54.6h",sample2_name="PB58.6h",
+#                                                               minimum_acceptable_correlation=0.8,timepoint="6h",
+#                                                               rank_diff_outfile="weighted_rank1_rank_diff.csv",
+#                                                               abs_quantiles_outfile="weighted_rank_abs_values_quantiles.csv",
+#                                                               rank_diff_hist_outfile="weighted_rank1_rank_diff_histogram.pdf",
+#                                                               outdir="weighted_rank1_6hr_Correlation_Improvement_Graphs",
+#                                                               randomize_data=FALSE,
+#                                                               weighted_rank = TRUE,
+#                                                               raw_fpkm_average_matrix=m_raw_filtered_fpkm_avgs,
+#                                                               weighted_rank_constant = 1,
+#                                                               randomization_seed=5712)
+
+weighted_rank1_correlations=l_weighted_rank1_results$Correlations
+weighted_rank1_genes_removed=l_weighted_rank1_results$Genes_Removed
+weighted_rank1_genes_not_removed=l_weighted_rank1_results$Genes_Not_Removed
+
+
+# l_removing_type=list("Normalized Expression\nRank Difference"=nonrandom_correlations,
+#                      "Random Removal"=randomized_removal_correlations,
+#                      "Fold Change Removal"=fold_change_removal_correlations,
+#                      "Average Expression Removal"=average_expression_removal_correlations)
+
 l_removing_type=list("Normalized Expression\nRank Difference"=nonrandom_correlations,
                      "Random Removal"=randomized_removal_correlations,
-                     "Fold Change Removal"=fold_change_removal_correlations,
                      "Average Expression Removal"=average_expression_removal_correlations)
-#rephasing_alg_dot_plot(nonrandom_correlations,average_expression_removal_correlations,"6hr_average_expression_removal")
+
+
+rephasing_alg_dot_plot(l_removing_type,"6hr_average_expression_removal")
 
 #rephasing_alg_bar_plot(nonrandom_genes_removed,nonrandom_genes_not_removed,
 #                       randomized_genes_removed, randomized_genes_not_removed,outfile_stem = "6hr")
 
 
-volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",flagged_genes=nonrandom_genes_removed) #Want the reference to be
+#volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",flagged_genes=nonrandom_genes_removed) #Want the reference to be
                                                                                           #the denominator
 
 # volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",nonrandom_genes_removed,use_rankdiff = TRUE) #Want the reference to be
 #the denominator
 
-volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",
-             outfile_stem="percentile_weighted2",weighted_rank2_genes_removed) #Want the reference to be
+#volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",
+#             outfile_stem="percentile_weighted2",weighted_rank2_genes_removed) #Want the reference to be
                                                                                            #the denominator
+
+# volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",
+#             outfile_stem="percentile_weighted1",weighted_rank1_genes_removed) #Want the reference to be
+#                                                                                 #the denominator
+# volcano_plot(m_raw_fpkm_avgs,group1_identifier ="PB58.6h" ,group2_identifier = "NF54.6h",
+#             outfile_stem="percentile_weighted1.5",weighted_rank1.5_genes_removed) #Want the reference to be
+#                                                                                 #the denominator
